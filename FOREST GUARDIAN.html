@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forest Guardian</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lato:wght@300;400&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#000;font-family:'Lato',sans-serif}
+
+#top-bar{position:fixed;top:0;left:0;right:0;z-index:100;pointer-events:none;padding:14px 24px;display:flex;align-items:flex-start;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,8,2,.9),transparent)}
+#quest-panel{flex:1;max-width:440px}
+#quest-label{font-family:'Cinzel',serif;color:#5aaa30;font-size:9px;letter-spacing:4px;margin-bottom:5px;opacity:.7}
+#quest-title-hud{font-family:'Cinzel',serif;color:#c8f080;font-size:16px;letter-spacing:2px;line-height:1.3}
+#quest-sub{font-family:'Cinzel',serif;color:#7aaa50;font-size:10px;letter-spacing:1px;margin-top:3px;opacity:.8}
+#timer-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
+#timer-label{font-family:'Cinzel',serif;color:#444;font-size:8px;letter-spacing:3px}
+#timer{font-family:'Cinzel',serif;font-size:32px;font-weight:700;color:#a0ff60;text-shadow:0 0 20px #40ff20;transition:color .3s;min-width:55px;text-align:center}
+#timer.urgent{color:#ff4020!important;text-shadow:0 0 20px #ff2000!important;animation:blink .4s infinite alternate}
+@keyframes blink{from{opacity:1}to{opacity:.3}}
+#power-area{display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:150px}
+#power-label{font-family:'Cinzel',serif;color:#444;font-size:8px;letter-spacing:3px}
+#power-bar-bg{width:130px;height:7px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden}
+#power-bar{height:100%;width:0%;background:linear-gradient(90deg,#40ff80,#a0ff40);border-radius:4px;transition:width .8s ease,background .8s}
+#power-text{font-family:'Cinzel',serif;color:#7ddb50;font-size:10px;letter-spacing:2px}
+
+#steps{position:fixed;top:90px;left:20px;z-index:100;pointer-events:none;display:flex;flex-direction:column;gap:5px}
+.step{font-family:'Cinzel',serif;font-size:10px;letter-spacing:2px;display:flex;align-items:center;gap:7px;transition:all .4s;color:rgba(100,150,60,.4)}
+.step.active{color:#c8f080;text-shadow:0 0 10px #60cc30}
+.step.done{color:rgba(60,120,30,.3);text-decoration:line-through}
+.sdot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+#prompt{position:fixed;top:48%;left:50%;transform:translate(-50%,-50%);z-index:100;background:rgba(8,25,6,.92);color:#b8e870;padding:9px 24px;border-radius:3px;font-family:'Cinzel',serif;font-size:11px;letter-spacing:4px;border:1px solid rgba(100,200,50,.4);display:none;pointer-events:none;animation:floatup 1.6s ease-in-out infinite alternate}
+@keyframes floatup{from{transform:translate(-50%,-50%)}to{transform:translate(-50%,calc(-50% - 7px))}}
+
+#pu-flash{position:fixed;inset:0;z-index:90;pointer-events:none;opacity:0;transition:opacity .15s}
+#pu-banner{position:fixed;top:37%;left:50%;transform:translate(-50%,-50%);z-index:91;pointer-events:none;text-align:center;opacity:0;transition:opacity .3s}
+#pu-banner h2{font-family:'Cinzel',serif;font-size:2.4rem;font-weight:700;letter-spacing:6px;color:#fff;text-shadow:0 0 50px currentColor}
+#pu-banner p{font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:4px;color:rgba(200,255,150,.8);margin-top:8px}
+
+#map-wrap{position:fixed;bottom:46px;right:18px;z-index:100;pointer-events:none}
+#map-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:3px;color:rgba(100,180,60,.4);text-align:center;margin-bottom:3px;text-transform:uppercase}
+#minimap{display:block;border-radius:50%;border:1.5px solid rgba(80,180,50,.3);background:rgba(4,10,4,.88);box-shadow:0 0 18px rgba(30,100,15,.2)}
+
+#hint{position:fixed;bottom:16px;left:0;right:0;text-align:center;z-index:100;pointer-events:none;font-family:'Cinzel',serif;font-size:9px;letter-spacing:3px;color:rgba(90,130,50,.35);text-transform:uppercase}
+#vig{position:fixed;inset:0;pointer-events:none;z-index:10;background:radial-gradient(ellipse at center,transparent 42%,rgba(0,7,2,.78) 100%)}
+#canopy{position:fixed;top:0;left:0;right:0;height:130px;pointer-events:none;z-index:10;background:linear-gradient(to bottom,rgba(2,10,4,.88),transparent)}
+#fog-ov{position:fixed;inset:0;pointer-events:none;z-index:20;opacity:0;transition:opacity .8s;background:radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,.93) 100%)}
+
+#popup-ov{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);backdrop-filter:blur(7px)}
+.pbox{position:relative;min-width:360px;max-width:460px;padding:50px 46px 42px;border-radius:5px;text-align:center;transform:scale(.82);opacity:0;transition:transform .38s cubic-bezier(.34,1.56,.64,1),opacity .25s ease}
+.pbox.show{transform:scale(1)!important;opacity:1!important}
+.pbox.win{background:linear-gradient(155deg,#060e04,#0d2006);border:1px solid rgba(100,220,60,.28);box-shadow:0 0 70px rgba(50,170,20,.18)}
+.pbox.fail{background:linear-gradient(155deg,#0e0404,#1c0808);border:1px solid rgba(200,55,35,.28);box-shadow:0 0 70px rgba(170,30,15,.18)}
+.pbox::before,.pbox::after{content:'';position:absolute;width:20px;height:20px;border-style:solid}
+.pbox.win::before,.pbox.win::after{border-color:rgba(100,220,60,.3)}
+.pbox.fail::before,.pbox.fail::after{border-color:rgba(200,55,35,.3)}
+.pbox::before{top:10px;left:10px;border-width:1px 0 0 1px}
+.pbox::after{bottom:10px;right:10px;border-width:0 1px 1px 0}
+#p-icon{font-size:3rem;display:block;margin-bottom:14px;animation:ibounce .6s ease .15s both}
+@keyframes ibounce{from{transform:scale(0) rotate(-25deg)}to{transform:scale(1) rotate(0)}}
+#p-title{font-family:'Cinzel',serif;font-size:1.5rem;font-weight:700;letter-spacing:5px;margin-bottom:11px}
+.pbox.win #p-title{color:#9eff60;text-shadow:0 0 30px #40ff20}
+.pbox.fail #p-title{color:#ff6040;text-shadow:0 0 30px #ff2000}
+#p-sub{font-family:'Cinzel',serif;font-size:.76rem;letter-spacing:2px;line-height:2;margin-bottom:30px;white-space:pre-line}
+.pbox.win #p-sub{color:rgba(180,240,120,.75)}
+.pbox.fail #p-sub{color:rgba(240,150,130,.72)}
+#p-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.pbtn{pointer-events:auto;cursor:pointer;font-family:'Cinzel',serif;font-size:11px;letter-spacing:3px;padding:11px 28px;border-radius:3px;transition:.3s;background:transparent}
+.pbox.win .pbtn{border:1px solid rgba(100,220,60,.4);color:#80e040}
+.pbox.win .pbtn:hover{background:rgba(70,170,25,.2);box-shadow:0 0 20px rgba(80,200,30,.3)}
+.pbox.fail .pbtn{border:1px solid rgba(200,55,35,.4);color:#ff7050}
+.pbox.fail .pbtn:hover{background:rgba(170,30,15,.2);box-shadow:0 0 20px rgba(200,45,25,.3)}
+
+#win-screen{position:fixed;inset:0;z-index:600;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;background:rgba(0,4,0,.96);backdrop-filter:blur(10px)}
+#win-screen h1{font-family:'Cinzel',serif;font-size:3.2rem;color:#ffd700;letter-spacing:8px;text-shadow:0 0 60px #ffd700;animation:glow 2s ease-in-out infinite alternate;margin-bottom:16px}
+@keyframes glow{from{text-shadow:0 0 40px #ffd700}to{text-shadow:0 0 100px #ffff80,0 0 200px #ffd700}}
+#win-screen p{font-family:'Cinzel',serif;color:#90c060;letter-spacing:3px;font-size:1rem;line-height:2.2}
+#win-screen button{margin-top:32px;pointer-events:auto;font-family:'Cinzel',serif;letter-spacing:4px;font-size:12px;padding:13px 38px;background:transparent;border:1px solid rgba(255,215,0,.4);color:#ffd700;border-radius:3px;cursor:pointer;transition:.3s}
+#win-screen button:hover{background:rgba(255,215,0,.12);box-shadow:0 0 30px rgba(255,215,0,.3)}
+</style>
+</head>
+<body>
+<div id="vig"></div><div id="canopy"></div><div id="fog-ov"></div>
+
+<div id="top-bar">
+  <div id="quest-panel">
+    <div id="quest-label">CURRENT MISSION</div>
+    <div id="quest-title-hud">Awakening…</div>
+    <div id="quest-sub"></div>
+  </div>
+  <div id="timer-wrap"><div id="timer-label">TIME LEFT</div><div id="timer">—</div></div>
+  <div id="power-area">
+    <div id="power-label">GUARDIAN POWER</div>
+    <div id="power-bar-bg"><div id="power-bar"></div></div>
+    <div id="power-text">DORMANT</div>
+  </div>
+</div>
+
+<div id="steps"></div>
+<div id="prompt">COMMUNE [E]</div>
+<div id="pu-flash"></div>
+<div id="pu-banner"><h2 id="pu-h"></h2><p id="pu-p"></p></div>
+
+<div id="map-wrap">
+  <div id="map-lbl">⬦ MAP ⬦</div>
+  <canvas id="minimap" width="160" height="160"></canvas>
+</div>
+
+<div id="hint">WASD · Move &nbsp;|&nbsp; Drag · Look &nbsp;|&nbsp; E · Interact &nbsp;|&nbsp; R · Recenter</div>
+
+<div id="popup-ov">
+  <div class="pbox" id="pbox">
+    <span id="p-icon"></span>
+    <div id="p-title"></div>
+    <div id="p-sub"></div>
+    <div id="p-btns"></div>
+  </div>
+</div>
+
+<div id="win-screen">
+  <h1>FOREST GUARDIAN</h1>
+  <p>All three ancient forces are yours.<br>The forest breathes with your power.<br>You are the Guardian.</p>
+  <button onclick="location.reload()">⬦ PLAY AGAIN ⬦</button>
+</div>
+
+<script>
+// ──────────────────────────────────────────
+// SCENE
+// ──────────────────────────────────────────
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.88;
+document.body.appendChild(renderer.domElement);
+scene.background = new THREE.Color(0x050d04);
+scene.fog = new THREE.FogExp2(0x061008, 0.024);
+
+const ambient = new THREE.AmbientLight(0x1a3a12, 0.7); scene.add(ambient);
+const sun = new THREE.DirectionalLight(0x8fc44a, 0.9);
+sun.position.set(8,30,12); sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.far=200;
+['left','right','top','bottom'].forEach((s,i)=>sun.shadow.camera[s]=[-80,80,80,-80][i]);
+scene.add(sun);
+scene.add(new THREE.DirectionalLight(0x3a6e2a, 0.3).position.set(-15,10,-10) && (() => { const l=new THREE.DirectionalLight(0x3a6e2a,.3); l.position.set(-15,10,-10); scene.add(l); return l; })());
+scene.add(new THREE.HemisphereLight(0x294a18, 0x0d1a07, 0.5));
+
+// GROUND
+const gMat = new THREE.MeshStandardMaterial({color:0x0d1f07,roughness:1});
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(500,500,60,60), gMat);
+ground.rotation.x = -Math.PI/2; ground.receiveShadow=true;
+const gpa = ground.geometry.attributes.position;
+for(let i=0;i<gpa.count;i++){const x=gpa.getX(i),z=gpa.getZ(i);if(Math.sqrt(x*x+z*z)>4)gpa.setZ(i,(Math.random()-.5)*.2);}
+gpa.needsUpdate=true; ground.geometry.computeVertexNormals(); scene.add(ground);
+
+// Moss patches
+for(let i=0;i<200;i++){
+  const rx=(Math.random()-.5)*220,rz=(Math.random()-.5)*220;
+  const m=new THREE.Mesh(new THREE.CircleGeometry(Math.random()*1.5+.3,7),
+    new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(.28+Math.random()*.08,.6,.08+Math.random()*.05),roughness:1}));
+  m.rotation.x=-Math.PI/2; m.position.set(rx,.01,rz); scene.add(m);
+}
+
+// TREES
+const allTrees=[];
+const TP=[0x1a0c04,0x0e0804,0x1f1008];
+const LP=[0x0a1f06,0x091a05,0x0e2608,0x0c2207,0x071504];
+function mkTree(x,z,sc=1){
+  const g=new THREE.Group();
+  const th=(3.5+Math.random()*3)*sc, tr=(0.22+Math.random()*.2)*sc;
+  const tk=new THREE.Mesh(new THREE.CylinderGeometry(tr*.55,tr,th,7,2),new THREE.MeshStandardMaterial({color:TP[~~(Math.random()*3)],roughness:1}));
+  tk.position.y=th/2; tk.castShadow=true; g.add(tk);
+  for(let r=0;r<3;r++){
+    const ra=(r/3)*Math.PI*2+Math.random()*.4;
+    const ro=new THREE.Mesh(new THREE.BoxGeometry(tr*.4,tr*1.2,tr*1.8),new THREE.MeshStandardMaterial({color:0x120904,roughness:1}));
+    ro.position.set(Math.cos(ra)*tr*1.3,.25,Math.sin(ra)*tr*1.3); ro.rotation.y=ra; ro.rotation.z=Math.PI*.12; g.add(ro);
+  }
+  const lm=new THREE.MeshStandardMaterial({color:LP[~~(Math.random()*5)],roughness:.9,side:THREE.DoubleSide});
+  for(let l=0;l<3;l++){
+    const ls=(1.2-l*.18)*sc,ly=th+l*1.1*sc;
+    const lf=new THREE.Mesh(l===0?new THREE.ConeGeometry(1.8*ls,2.4*ls,7):new THREE.DodecahedronGeometry(1.4*ls),lm);
+    lf.position.y=ly; lf.rotation.y=Math.random()*Math.PI; lf.castShadow=true; g.add(lf);
+  }
+  g.position.set(x,0,z); g.rotation.y=Math.random()*Math.PI*2; scene.add(g); allTrees.push(g);
+}
+for(let i=0;i<80;i++){
+  let rx=(Math.random()-.5)*220,rz=(Math.random()-.5)*220;
+  if(Math.abs(rx)<14&&Math.abs(rz)<14)rx+=28;
+  mkTree(rx,rz,.6+Math.random()*.8);
+}
+
+// Ferns
+const fmat=new THREE.MeshStandardMaterial({color:0x1a3a0a,roughness:.95,side:THREE.DoubleSide});
+for(let i=0;i<130;i++){
+  const rx=(Math.random()-.5)*170,rz=(Math.random()-.5)*170;
+  if(Math.abs(rx)<3&&Math.abs(rz)<3)continue;
+  const g=new THREE.Group();
+  for(let f=0;f<5;f++){const a=(f/5)*Math.PI*2;const b=new THREE.Mesh(new THREE.PlaneGeometry(.12,.65+Math.random()*.3),fmat);b.position.set(Math.cos(a)*.18,.4,Math.sin(a)*.18);b.rotation.y=a;b.rotation.z=Math.PI*.15;g.add(b);}
+  g.position.set(rx,0,rz);g.rotation.y=Math.random()*Math.PI*2;scene.add(g);
+}
+
+// Decorative mushrooms
+for(let i=0;i<55;i++){
+  const rx=(Math.random()-.5)*170,rz=(Math.random()-.5)*170;
+  const g=new THREE.Group(),sh=.22+Math.random()*.18,cr=.12+Math.random()*.1;
+  const st=new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,sh,6),new THREE.MeshStandardMaterial({color:0x2a1a0a,roughness:1}));
+  st.position.y=sh/2;
+  const cp=new THREE.Mesh(new THREE.SphereGeometry(cr,8,6,0,Math.PI*2,0,Math.PI*.55),new THREE.MeshStandardMaterial({color:[0x8b0000,0x5a3010,0x6e1818][~~(Math.random()*3)],roughness:.8}));
+  cp.position.y=sh+cr*.3; g.add(st,cp); g.position.set(rx,0,rz); g.rotation.y=Math.random()*Math.PI*2; scene.add(g);
+}
+
+// FIREFLIES
+const FC=260,ffPos=new Float32Array(FC*3),ffd=[];
+for(let i=0;i<FC;i++){ffPos[i*3]=(Math.random()-.5)*160;ffPos[i*3+1]=.4+Math.random()*4.5;ffPos[i*3+2]=(Math.random()-.5)*160;ffd.push({sp:.002+Math.random()*.004,ph:Math.random()*Math.PI*2});}
+const ffGeo=new THREE.BufferGeometry();ffGeo.setAttribute('position',new THREE.BufferAttribute(ffPos,3));
+const ffMat=new THREE.PointsMaterial({color:0x88ffaa,size:.12,transparent:true,opacity:.8,sizeAttenuation:true});
+const fireflies=new THREE.Points(ffGeo,ffMat);scene.add(fireflies);
+
+const SC=500,spPos=new Float32Array(SC*3);
+for(let i=0;i<SC;i++){spPos[i*3]=(Math.random()-.5)*150;spPos[i*3+1]=Math.random()*8;spPos[i*3+2]=(Math.random()-.5)*150;}
+const spGeo=new THREE.BufferGeometry();spGeo.setAttribute('position',new THREE.BufferAttribute(spPos,3));
+const spMat=new THREE.PointsMaterial({color:0xc8f0a0,size:.05,transparent:true,opacity:.4,sizeAttenuation:true});
+const spores=new THREE.Points(spGeo,spMat);scene.add(spores);
+
+// Player aura particles
+const AC=80,aurPos=new Float32Array(AC*3);
+for(let i=0;i<AC;i++){const a=Math.random()*Math.PI*2,r=Math.random()*.9;aurPos[i*3]=Math.cos(a)*r;aurPos[i*3+1]=Math.random()*2.2;aurPos[i*3+2]=Math.sin(a)*r;}
+const aurGeo=new THREE.BufferGeometry();aurGeo.setAttribute('position',new THREE.BufferAttribute(aurPos,3));
+const aurMat=new THREE.PointsMaterial({color:0x40ff80,size:.09,transparent:true,opacity:0,sizeAttenuation:true});
+const aura=new THREE.Points(aurGeo,aurMat);
+
+// ──────────────────────────────────────────
+// PLAYER
+// ──────────────────────────────────────────
+const player=new THREE.Group();
+const dkMat=new THREE.MeshStandardMaterial({color:0x080808,roughness:.5});
+const visMat=new THREE.MeshStandardMaterial({color:0x00f2ff,emissive:0x00f2ff,emissiveIntensity:1.5});
+
+const torso=new THREE.Mesh(new THREE.CylinderGeometry(.22,.14,.65,6),dkMat);torso.position.y=1.15;player.add(torso);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.14,14,14),dkMat);head.position.y=1.6;player.add(head);
+const visor=new THREE.Mesh(new THREE.BoxGeometry(.18,.04,.05),visMat);visor.position.set(0,1.62,.1);player.add(visor);
+const corePiece=new THREE.Mesh(new THREE.BoxGeometry(.1,.2,.1),visMat);corePiece.position.set(0,1.2,-.15);player.add(corePiece);
+const aG=new THREE.BoxGeometry(.09,.45,.09);
+const LA=new THREE.Mesh(aG,dkMat);LA.position.set(-.28,1.15,0);player.add(LA);
+const RA=new THREE.Mesh(aG,dkMat);RA.position.set(.28,1.15,0);player.add(RA);
+const lG=new THREE.CylinderGeometry(.07,.05,.8,6);
+const LL=new THREE.Mesh(lG,dkMat);LL.position.set(-.12,.4,0);player.add(LL);
+const RL=new THREE.Mesh(lG,dkMat);RL.position.set(.12,.4,0);player.add(RL);
+const torch=new THREE.PointLight(0x00f2ff,1.2,9);torch.position.set(0,1.5,.5);player.add(torch);
+player.add(aura);
+scene.add(player);
+
+// ──────────────────────────────────────────
+// MISSIONS
+// M1: Walk to shrine, press E           (40s, easy)
+// M2: Walk into 3 glowing orbs nearby   (50s, medium — proximity only, no E)
+// M3: Race to heart tree through fog    (55s, exciting but fair)
+// ──────────────────────────────────────────
+const MISSIONS = [
+  {
+    id:0, name:"THE MOSS SHRINE",
+    desc:"An ancient shrine pulses north-east. Reach it and commune with the forest.",
+    subhint:"▲ Head north-east — it's 42 units away",
+    time:40, type:'single',
+    target:{x:32,z:-30}, radius:7,
+    steps:["Locate the Moss Shrine (north-east)","Stand near it and press [E]"],
+    powerup:{title:"SWIFT ROOTS", sub:"The forest floor lends you speed", color:"#40ff80"}
+  },
+  {
+    id:1, name:"THE SPIRIT ORBS",
+    desc:"Three spirit orbs drift through the grove. Simply walk into each one to collect it.",
+    subhint:"All 3 orbs shown on your map — walk into them",
+    time:50, type:'orbs',
+    // Placed within 35 units of start, spread in different directions
+    orbPositions:[{x:20,z:14},{x:-18,z:22},{x:12,z:-28}],
+    radius:5,
+    steps:["Walk into Spirit Orb 1","Walk into Spirit Orb 2","Walk into Spirit Orb 3","All spirits gathered!"],
+    powerup:{title:"FOREST ARMOR", sub:"The canopy weaves a shield around you", color:"#80ff40"}
+  },
+  {
+    id:2, name:"THE HEART TREE",
+    desc:"The Heart Tree waits south-west. A shadow fog rises from behind — keep moving!",
+    subhint:"▼ Sprint south-west to the red marker",
+    time:55, type:'chase',
+    target:{x:-52,z:-55}, radius:9,
+    steps:["The dark fog is rising — keep moving!","Reach the Heart Tree [E]"],
+    powerup:{title:"GUARDIAN AWAKENED", sub:"You are the forest. The forest is you.", color:"#ffd700"}
+  }
+];
+
+// ── SHRINE (M1) ──────────────────────────
+function mkShrine(x,z,col){
+  const g=new THREE.Group();
+  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.18,.26,1.6,6),new THREE.MeshStandardMaterial({color:0x1a2010,roughness:.9}));
+  pillar.position.y=.8;pillar.castShadow=true;g.add(pillar);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.42,.04,8,24),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.5}));
+  ring.position.y=1.9;ring.rotation.x=Math.PI/2;g.add(ring);
+  const orb=new THREE.Mesh(new THREE.OctahedronGeometry(.32,1),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:2.5,roughness:.3}));
+  orb.position.y=2.4;g.add(orb);
+  const gl=new THREE.PointLight(col,2,11);gl.position.y=2.4;g.add(gl);
+  g.position.set(x,0,z);g.visible=false;scene.add(g);
+  return {group:g,orb,ring,gl};
+}
+const shrine0=mkShrine(MISSIONS[0].target.x,MISSIONS[0].target.z,0x40ff88);
+
+// ── SPIRIT ORBS (M2) ─────────────────────
+const floatOrbs=[];
+const orbColors=[0x40ffff,0xff80ff,0xffff40];
+MISSIONS[1].orbPositions.forEach((pos,i)=>{
+  const g=new THREE.Group(),col=orbColors[i];
+  const om=new THREE.Mesh(new THREE.OctahedronGeometry(.5,1),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:2.5,roughness:.2}));
+  om.position.y=2.2;g.add(om);
+  const gl=new THREE.PointLight(col,2.8,12);gl.position.y=2.2;g.add(gl);
+  // Ground ring beacon — big and unmissable
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(2,.07,8,32),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.2}));
+  ring.rotation.x=Math.PI/2;ring.position.y=.06;g.add(ring);
+  // Number label pillar
+  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.06,.09,.8,6),new THREE.MeshStandardMaterial({color:0x1a2010,roughness:.9}));
+  pillar.position.y=.4;g.add(pillar);
+  g.position.set(pos.x,0,pos.z);g.visible=false;scene.add(g);
+  floatOrbs.push({group:g,orb:om,gl,ring,collected:false,idx:i,x:pos.x,z:pos.z});
+});
+
+// ── HEART TREE (M3) ──────────────────────
+function mkHeartTree(x,z){
+  const g=new THREE.Group();
+  const tk=new THREE.Mesh(new THREE.CylinderGeometry(.5,.95,8,8),new THREE.MeshStandardMaterial({color:0x0a0804,roughness:1,emissive:0x180600,emissiveIntensity:.5}));
+  tk.position.y=4;tk.castShadow=true;g.add(tk);
+  [0,1,2].forEach(l=>{
+    const lf=new THREE.Mesh(new THREE.DodecahedronGeometry(2.5-l*.3),new THREE.MeshStandardMaterial({color:0x061504,roughness:.9,side:THREE.DoubleSide}));
+    lf.position.y=9+l*1.4;lf.rotation.y=Math.random()*Math.PI;lf.castShadow=true;g.add(lf);
+  });
+  const heart=new THREE.Mesh(new THREE.OctahedronGeometry(.7,1),new THREE.MeshStandardMaterial({color:0xff2040,emissive:0xff0020,emissiveIntensity:2}));
+  heart.position.y=1.4;g.add(heart);
+  const hgl=new THREE.PointLight(0xff2040,2.5,18);hgl.position.y=1.6;g.add(hgl);
+  g.position.set(x,0,z);scene.add(g);
+  return {group:g,heart,hgl};
+}
+const heartTree=mkHeartTree(MISSIONS[2].target.x,MISSIONS[2].target.z);
+
+// ──────────────────────────────────────────
+// GAME STATE
+// ──────────────────────────────────────────
+let curMission=-1,mActive=false,timerStart=0;
+let powerLevel=0,playerSpeed=0.14,walkTime=0;
+let chaseMode=false,fogAmt=0;
+let orbsLeft=3;
+let trailParts=[],gameOver=false;
+let keys={},camAngle=0,isDrag=false;
+
+window.onkeydown=e=>{keys[e.code]=true;if(e.code==='KeyR'){player.position.set(0,0,0);camAngle=0;}};
+window.onkeyup=e=>keys[e.code]=false;
+window.onmousedown=()=>isDrag=true;
+window.onmouseup=()=>isDrag=false;
+window.onmousemove=e=>{if(isDrag)camAngle-=e.movementX*.008;};
+
+// ──────────────────────────────────────────
+// POPUP
+// ──────────────────────────────────────────
+function showPopup({type,icon,title,sub,buttons}){
+  const ov=document.getElementById('popup-ov'),box=document.getElementById('pbox');
+  box.className='pbox '+type;
+  document.getElementById('p-icon').textContent=icon;
+  document.getElementById('p-title').textContent=title;
+  document.getElementById('p-sub').textContent=sub;
+  const btns=document.getElementById('p-btns');btns.innerHTML='';
+  buttons.forEach(b=>{
+    const el=document.createElement('button');el.className='pbtn';el.textContent=b.label;
+    el.onclick=()=>{closePopup();if(b.action)setTimeout(b.action,330);};
+    btns.appendChild(el);
+  });
+  ov.style.display='flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>box.classList.add('show')));
+}
+function closePopup(){
+  document.getElementById('pbox').classList.remove('show');
+  setTimeout(()=>document.getElementById('popup-ov').style.display='none',340);
+}
+
+// ──────────────────────────────────────────
+// POWER-UP BANNER
+// ──────────────────────────────────────────
+function showBanner(pu){
+  const fl=document.getElementById('pu-flash'),bn=document.getElementById('pu-banner');
+  document.getElementById('pu-h').textContent=pu.title;
+  document.getElementById('pu-h').style.color=pu.color;
+  document.getElementById('pu-p').textContent=pu.sub;
+  fl.style.background=`radial-gradient(ellipse at center,${pu.color}44 0%,transparent 70%)`;
+  fl.style.opacity='1';bn.style.opacity='1';
+  setTimeout(()=>{fl.style.opacity='0';bn.style.opacity='0';},2600);
+}
+
+// ──────────────────────────────────────────
+// MISSION FLOW
+// ──────────────────────────────────────────
+function startMission(idx){
+  curMission=idx;mActive=true;
+  const m=MISSIONS[idx];
+  timerStart=clock.getElapsedTime();
+  fogAmt=0;chaseMode=false;
+  document.getElementById('fog-ov').style.opacity='0';
+
+  if(m.type==='single'){shrine0.group.visible=true;}
+  if(m.type==='orbs'){orbsLeft=3;floatOrbs.forEach(o=>{o.collected=false;o.group.visible=true;});}
+  if(m.type==='chase'){chaseMode=true;}
+
+  document.getElementById('quest-title-hud').textContent=m.name;
+  document.getElementById('quest-sub').textContent=m.subhint;
+  document.getElementById('quest-label').textContent='◆ MISSION '+(idx+1)+' OF 3 ◆';
+
+  const se=document.getElementById('steps');se.innerHTML='';
+  m.steps.forEach((s,i)=>{
+    const d=document.createElement('div');d.className='step'+(i===0?' active':'');
+    d.id='st'+i;d.innerHTML=`<span class="sdot"></span>${s}`;se.appendChild(d);
+  });
+}
+
+function setStep(i){
+  document.querySelectorAll('.step').forEach((el,j)=>{
+    el.className='step'+(j<i?'done':(j===i?'active':''));
+  });
+}
+
+function completeMission(){
+  if(!mActive)return;
+  mActive=false;chaseMode=false;fogAmt=0;
+  document.getElementById('fog-ov').style.opacity='0';
+  const m=MISSIONS[curMission];
+  const isLast=curMission+1>=MISSIONS.length;
+  if(m.type==='single')shrine0.group.visible=false;
+  if(m.type==='orbs')floatOrbs.forEach(o=>o.group.visible=false);
+
+  showPopup({
+    type:'win',
+    icon:isLast?'👑':'✨',
+    title:isLast?'GUARDIAN AWAKENED':'MISSION COMPLETE',
+    sub:isLast
+      ?'All three ancient forces are yours.\nThe forest awakens. You are the Guardian.'
+      :`Power unlocked: ${m.powerup.title}\n"${m.powerup.sub}"`,
+    buttons:[{
+      label:isLast?'⬦ CLAIM VICTORY ⬦':'⬦ NEXT MISSION ⬦',
+      action:()=>{
+        powerLevel++;
+        applyPowerup(curMission);
+        showBanner(m.powerup);
+        updatePowerBar();
+        if(isLast){setTimeout(()=>{document.getElementById('win-screen').style.display='flex';gameOver=true;},2200);}
+        else{setTimeout(()=>startMission(curMission+1),2400);}
+      }
+    }]
+  });
+}
+
+function failMission(){
+  if(!mActive)return;
+  mActive=false;chaseMode=false;fogAmt=0;
+  document.getElementById('fog-ov').style.opacity='0';
+  document.getElementById('timer').textContent='✗';
+  document.getElementById('timer').style.color='#ff2020';
+  showPopup({
+    type:'fail',icon:'💀',title:'MISSION FAILED',
+    sub:`"${MISSIONS[curMission].name}" — time ran out.\nThe forest grows cold. Try again.`,
+    buttons:[{
+      label:'⬦ TRY AGAIN ⬦',
+      action:()=>{document.getElementById('timer').style.color='#a0ff60';startMission(curMission);}
+    }]
+  });
+}
+
+// ──────────────────────────────────────────
+// POWER UPS
+// ──────────────────────────────────────────
+function updatePowerBar(){
+  const pct=(powerLevel/3)*100;
+  document.getElementById('power-bar').style.width=pct+'%';
+  const names=['DORMANT','SWIFT','ARMORED','GUARDIAN'];
+  document.getElementById('power-text').textContent=names[Math.min(powerLevel,3)];
+  const cols=[null,'#40ff80,#20cc60','#80ff40,#60cc20','#ffd700,#ffb000'];
+  if(cols[powerLevel])document.getElementById('power-bar').style.background=`linear-gradient(90deg,${cols[powerLevel]})`;
+}
+
+function applyPowerup(mi){
+  if(mi===0){
+    playerSpeed=0.22;
+    visMat.color.set(0x40ff80);visMat.emissive.set(0x40ff80);
+    aurMat.color.set(0x40ff80);aurMat.opacity=0.65;
+    torch.color.set(0x40ff80);
+  }
+  if(mi===1){
+    player.scale.set(1.3,1.3,1.3);
+    dkMat.color.set(0x1a3a0a);
+    aurMat.color.set(0x80ff40);aurMat.opacity=0.82;
+    ambient.intensity=1.0;playerSpeed=0.24;
+  }
+  if(mi===2){
+    player.scale.set(1.65,1.65,1.65);
+    visMat.color.set(0xffd700);visMat.emissive.set(0xffd700);visMat.emissiveIntensity=4;
+    dkMat.color.set(0x1c1000);
+    aurMat.color.set(0xffd700);aurMat.opacity=1.0;aurMat.size=.18;
+    torch.color.set(0xffd700);torch.intensity=4;torch.distance=20;
+    ambient.intensity=1.4;sun.intensity=2;sun.color.set(0xffe080);
+    scene.fog=new THREE.FogExp2(0x180e00,.014);
+    spMat.color.set(0xffd700);spMat.opacity=.72;
+    ffMat.color.set(0xffc040);
+    burstParticles();
+  }
+}
+
+function burstParticles(){
+  const bg=new THREE.BufferGeometry(),n=400,bp=new Float32Array(n*3);
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,el=Math.random()*Math.PI,r=Math.random()*18;
+    bp[i*3]=player.position.x+Math.cos(a)*Math.sin(el)*r;bp[i*3+1]=1+Math.random()*10;bp[i*3+2]=player.position.z+Math.sin(a)*Math.sin(el)*r;
+  }
+  bg.setAttribute('position',new THREE.BufferAttribute(bp,3));
+  const bm=new THREE.PointsMaterial({color:0xffd700,size:.28,transparent:true,opacity:1,sizeAttenuation:true});
+  const pts=new THREE.Points(bg,bm);scene.add(pts);
+  let age=0;const ti=setInterval(()=>{age+=.035;bm.opacity=Math.max(0,1-age);if(age>1){scene.remove(pts);clearInterval(ti);}},40);
+}
+
+function miniOrbBurst(pos,idx){
+  const bg=new THREE.BufferGeometry(),n=70,bp=new Float32Array(n*3);
+  for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,r=Math.random()*5;bp[i*3]=pos.x+Math.cos(a)*r;bp[i*3+1]=pos.y+1+Math.random()*3;bp[i*3+2]=pos.z+Math.sin(a)*r;}
+  bg.setAttribute('position',new THREE.BufferAttribute(bp,3));
+  const bm=new THREE.PointsMaterial({color:orbColors[idx],size:.24,transparent:true,opacity:1,sizeAttenuation:true});
+  const pts=new THREE.Points(bg,bm);scene.add(pts);
+  let age=0;const ti=setInterval(()=>{age+=.05;bm.opacity=Math.max(0,1-age);if(age>1){scene.remove(pts);clearInterval(ti);}},40);
+}
+
+function spawnTrail(){
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array([0,0,0]),3));
+  const cols=[0x40ff80,0x80ff40,0xffd700];
+  const m=new THREE.PointsMaterial({color:cols[Math.min(powerLevel-1,2)],size:.14,transparent:true,opacity:.85,sizeAttenuation:true});
+  const pts=new THREE.Points(g,m);pts.position.copy(player.position);pts.position.y+=.5+Math.random()*.5;pts.position.x+=(Math.random()-.5)*.35;pts.position.z+=(Math.random()-.5)*.35;
+  scene.add(pts);trailParts.push({mesh:pts,life:1});
+}
+
+// ──────────────────────────────────────────
+// MINIMAP
+// ──────────────────────────────────────────
+const mmC=document.getElementById('minimap').getContext('2d');
+const MS=160,MR=MS/2,VIEW=105;
+function w2m(wx,wz){return{x:MR+(wx-player.position.x)*(MR/VIEW),y:MR+(wz-player.position.z)*(MR/VIEW)};}
+
+function drawMap(){
+  mmC.clearRect(0,0,MS,MS);
+  mmC.save();mmC.beginPath();mmC.arc(MR,MR,MR-1,0,Math.PI*2);mmC.clip();
+  mmC.fillStyle='rgba(3,9,3,.93)';mmC.fillRect(0,0,MS,MS);
+  mmC.strokeStyle='rgba(50,90,25,.12)';mmC.lineWidth=.5;
+  for(let g=-150;g<=150;g+=25){
+    const sx=w2m(g,0).x,sy=w2m(0,g).y;
+    mmC.beginPath();mmC.moveTo(sx,0);mmC.lineTo(sx,MS);mmC.stroke();
+    mmC.beginPath();mmC.moveTo(0,sy);mmC.lineTo(MS,sy);mmC.stroke();
+  }
+  // Trees
+  allTrees.forEach(tr=>{
+    const p=w2m(tr.position.x,tr.position.z);
+    if(p.x<-4||p.x>MS+4||p.y<-4||p.y>MS+4)return;
+    mmC.fillStyle='rgba(18,44,8,.6)';mmC.beginPath();mmC.arc(p.x,p.y,1.8,0,Math.PI*2);mmC.fill();
+  });
+  const now=Date.now();
+  // Mission markers
+  if(mActive){
+    const m=MISSIONS[curMission];
+    if(m.type==='single'||m.type==='chase'){
+      const tgt=m.type==='chase'?m.target:m.target;
+      const p=w2m(tgt.x,tgt.z);
+      const pulse=.5+.5*Math.sin(now*.005);
+      const col=m.type==='chase'?`rgba(255,60,80,`:`rgba(80,255,100,`;
+      mmC.fillStyle=col+(0.7+pulse*.3)+')';mmC.beginPath();mmC.arc(p.x,p.y,5,0,Math.PI*2);mmC.fill();
+      mmC.strokeStyle=col+(0.38+pulse*.38)+')';mmC.lineWidth=1.5;mmC.beginPath();mmC.arc(p.x,p.y,8+pulse*4,0,Math.PI*2);mmC.stroke();
+      const pp=w2m(player.position.x,player.position.z);
+      mmC.strokeStyle=m.type==='chase'?'rgba(255,100,80,.2)':'rgba(100,255,80,.2)';mmC.lineWidth=1;mmC.setLineDash([3,4]);
+      mmC.beginPath();mmC.moveTo(pp.x,pp.y);mmC.lineTo(p.x,p.y);mmC.stroke();mmC.setLineDash([]);
+    }
+    if(m.type==='orbs'){
+      const pp=w2m(player.position.x,player.position.z);
+      floatOrbs.forEach(o=>{
+        if(o.collected)return;
+        const p=w2m(o.x,o.z);
+        const pulse=.5+.5*Math.sin(now*.006+o.idx);
+        const cols2=['rgba(80,255,255,','rgba(255,80,255,','rgba(255,255,60,'];
+        mmC.fillStyle=cols2[o.idx]+(0.75+pulse*.25)+')';mmC.beginPath();mmC.arc(p.x,p.y,5,0,Math.PI*2);mmC.fill();
+        mmC.strokeStyle=cols2[o.idx]+(0.3+pulse*.3)+')';mmC.lineWidth=1.5;mmC.beginPath();mmC.arc(p.x,p.y,7+pulse*3,0,Math.PI*2);mmC.stroke();
+        mmC.strokeStyle='rgba(200,200,100,.15)';mmC.lineWidth=1;mmC.setLineDash([3,4]);
+        mmC.beginPath();mmC.moveTo(pp.x,pp.y);mmC.lineTo(p.x,p.y);mmC.stroke();mmC.setLineDash([]);
+      });
+    }
+  }
+  // Completed markers
+  for(let i=0;i<curMission;i++){
+    if(MISSIONS[i].target){const p=w2m(MISSIONS[i].target.x,MISSIONS[i].target.z);mmC.fillStyle='rgba(60,140,40,.25)';mmC.beginPath();mmC.arc(p.x,p.y,4,0,Math.PI*2);mmC.fill();}
+  }
+  // Player
+  {
+    const p=w2m(player.position.x,player.position.z);
+    const dx=Math.sin(player.rotation.y)*9,dz=Math.cos(player.rotation.y)*9;
+    mmC.strokeStyle='rgba(0,240,255,.75)';mmC.lineWidth=2;mmC.beginPath();mmC.moveTo(p.x,p.y);mmC.lineTo(p.x+dx,p.y-dz);mmC.stroke();
+    const pc=powerLevel===2?'rgba(255,215,0,1)':powerLevel===1?'rgba(130,255,60,1)':'rgba(0,240,255,1)';
+    mmC.fillStyle=pc;mmC.beginPath();mmC.arc(p.x,p.y,5,0,Math.PI*2);mmC.fill();
+    mmC.strokeStyle='rgba(0,0,0,.7)';mmC.lineWidth=1.2;mmC.stroke();
+  }
+  mmC.fillStyle='rgba(140,220,80,.5)';mmC.font='bold 8px sans-serif';mmC.textAlign='center';mmC.fillText('N',MR,12);
+  mmC.restore();
+  mmC.strokeStyle='rgba(70,170,45,.35)';mmC.lineWidth=1.5;mmC.beginPath();mmC.arc(MR,MR,MR-1,0,Math.PI*2);mmC.stroke();
+}
+
+// ──────────────────────────────────────────
+// GAME LOOP
+// ──────────────────────────────────────────
+const clock=new THREE.Clock();
+setTimeout(()=>{
+  document.getElementById('quest-title-hud').textContent='The forest stirs…';
+  document.getElementById('quest-sub').textContent='Three ancient forces await your awakening';
+  setTimeout(()=>startMission(0),2000);
+},600);
+
+function update(){
+  if(gameOver)return;
+  const t=clock.getElapsedTime();
+
+  // Timer
+  if(mActive){
+    const elapsed=t-timerStart;
+    const rem=Math.max(0,MISSIONS[curMission].time-elapsed);
+    const td=document.getElementById('timer');
+    td.textContent=Math.ceil(rem);
+    td.className=rem<=8?'urgent':'';
+    if(rem<=0){failMission();return;}
+    if(chaseMode){fogAmt=Math.min(.95,fogAmt+.003);document.getElementById('fog-ov').style.opacity=fogAmt*.82;}
+  }
+
+  // Movement
+  let mx=0,mz=0;
+  if(keys['KeyW']||keys['ArrowUp'])mz-=playerSpeed;
+  if(keys['KeyS']||keys['ArrowDown'])mz+=playerSpeed;
+  if(keys['KeyA']||keys['ArrowLeft'])mx-=playerSpeed;
+  if(keys['KeyD']||keys['ArrowRight'])mx+=playerSpeed;
+
+  if(mx||mz){
+    const mv=new THREE.Vector2(mx,mz).rotateAround(new THREE.Vector2(0,0),-camAngle);
+    player.position.x+=mv.x;player.position.z+=mv.y;
+    player.rotation.y=THREE.MathUtils.lerp(player.rotation.y,Math.atan2(mv.x,mv.y),.15);
+    walkTime+=.13;
+    LL.rotation.x=Math.sin(walkTime)*.5;RL.rotation.x=-Math.sin(walkTime)*.5;
+    LA.rotation.x=-Math.sin(walkTime)*.3;RA.rotation.x=Math.sin(walkTime)*.3;
+    if(powerLevel>=1&&Math.random()>.65)spawnTrail();
+  } else {
+    [LL,RL,LA,RA].forEach(l=>l.rotation.x=THREE.MathUtils.lerp(l.rotation.x,0,.1));
+  }
+
+  // Camera
+  const cd=11+powerLevel*.6;
+  camera.position.x=player.position.x+Math.sin(camAngle)*cd;
+  camera.position.z=player.position.z+Math.cos(camAngle)*cd;
+  camera.position.y=5.5+powerLevel*.5;
+  camera.lookAt(player.position.x,1.4+powerLevel*.2,player.position.z);
+
+  // Tree sway
+  allTrees.forEach((tr,i)=>{
+    tr.rotation.z=Math.sin(t*.4+i*.7)*.012;
+    const d=player.position.distanceTo(tr.position);
+    tr.rotation.x=d<7?THREE.MathUtils.lerp(tr.rotation.x,(7-d)*.04,.1):THREE.MathUtils.lerp(tr.rotation.x,0,.04);
+  });
+
+  // Particles
+  const fp=fireflies.geometry.attributes.position;
+  for(let i=0;i<FC;i++){fp.setY(i,fp.getY(i)+Math.sin(t*ffd[i].sp*200+ffd[i].ph)*.004);fp.setX(i,fp.getX(i)+Math.cos(t*ffd[i].sp*180+ffd[i].ph)*.003);}
+  fp.needsUpdate=true;ffMat.opacity=.45+Math.sin(t*1.8)*.35;
+  const sp2=spores.geometry.attributes.position;
+  for(let i=0;i<SC;i++){const ny=sp2.getY(i)+.005;sp2.setY(i,ny>9?.1:ny);sp2.setX(i,sp2.getX(i)+Math.sin(t*.3+i)*.002);}
+  sp2.needsUpdate=true;
+
+  // Aura
+  const ap=aura.geometry.attributes.position;
+  for(let i=0;i<AC;i++){const r=.7+Math.sin(t+i)*.3,a2=i*(Math.PI*2/AC)+t*.5;ap.setX(i,Math.cos(a2)*r);ap.setZ(i,Math.sin(a2)*r);ap.setY(i,ap.getY(i)+Math.sin(t*2+i*.8)*.005);}
+  ap.needsUpdate=true;
+
+  // Trail
+  trailParts=trailParts.filter(tp=>{tp.life-=.035;tp.mesh.position.y+=.04;tp.mesh.material.opacity=tp.life;if(tp.life<=0){scene.remove(tp.mesh);return false;}return true;});
+
+  // Mission interaction
+  let nearTarget=false;
+  let promptText='COMMUNE [E]';
+  const m=MISSIONS[curMission]||null;
+
+  if(mActive&&m){
+    // M1 — single shrine
+    if(m.type==='single'){
+      shrine0.orb.rotation.y+=.03;shrine0.orb.position.y=2.4+Math.sin(t*1.5)*.2;
+      shrine0.ring.rotation.z+=.025;shrine0.gl.intensity=1.6+Math.sin(t*2.5)*.6;
+      if(player.position.distanceTo(shrine0.group.position)<m.radius){
+        nearTarget=true;if(keys['KeyE']){keys['KeyE']=false;completeMission();}
+      }
+    }
+
+    // M2 — orbs: walk-in collection, no E needed
+    if(m.type==='orbs'){
+      floatOrbs.forEach(o=>{
+        if(o.collected)return;
+        o.orb.rotation.y+=.04;
+        o.orb.position.y=2.2+Math.sin(t*1.8+o.idx)*.25;
+        o.ring.rotation.z+=.025;
+        o.gl.intensity=2+Math.sin(t*2+o.idx)*.7;
+        const d=player.position.distanceTo(o.group.position);
+        if(d<m.radius+1){nearTarget=true;promptText='SPIRIT NEAR — WALK INTO IT';}
+        if(d<m.radius-1){
+          o.collected=true;orbsLeft--;
+          o.group.visible=false;
+          miniOrbBurst(o.group.position,o.idx);
+          setStep(3-orbsLeft);
+          if(orbsLeft<=0)setTimeout(()=>completeMission(),400);
+        }
+      });
+    }
+
+    // M3 — heart tree
+    if(m.type==='chase'){
+      heartTree.heart.rotation.y+=.04;
+      heartTree.hgl.intensity=1.8+Math.sin(t*3)*.6;
+      if(player.position.distanceTo(heartTree.group.position)<m.radius){
+        nearTarget=true;if(keys['KeyE']){keys['KeyE']=false;completeMission();}
+      }
+    }
+  }
+
+  const pEl=document.getElementById('prompt');
+  pEl.style.display=nearTarget?'block':'none';
+  pEl.textContent=promptText;
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  update();drawMap();
+  renderer.render(scene,camera);
+}
+animate();
+
+window.onresize=()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+};
+</script>
+</body>
+</html>
